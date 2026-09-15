@@ -21,4 +21,12 @@ public class BookingController {
         BookingResponse response = bookingService.createBooking(phone, request);
         return ResponseEntity.ok(response);
     }
+
+    @PatchMapping("{id}/cancel")
+    public ResponseEntity<BookingResponse> cancelBooking(@AuthenticationPrincipal String phone, @PathVariable Long id) {
+        BookingResponse response = bookingService.cancelBookingByGuest(phone, id);
+        return ResponseEntity.ok(response);
+    }
+
+
 }

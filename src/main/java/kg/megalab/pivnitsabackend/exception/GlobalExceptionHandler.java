@@ -23,6 +23,18 @@ import java.time.ZoneOffset;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BookingNotOwnedException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidBookingByGuest(BookingNotOwnedException ex, HttpServletRequest request) {
+        ErrorResponse response = new ErrorResponse(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                HttpStatus.FORBIDDEN.value(),
+                HttpStatus.FORBIDDEN.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
     @ExceptionHandler(TableUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleTableUnavailable(TableUnavailableException ex, HttpServletRequest request) {
         ErrorResponse response = new ErrorResponse(
