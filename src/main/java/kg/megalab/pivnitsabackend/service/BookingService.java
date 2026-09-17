@@ -33,6 +33,7 @@ public class BookingService {
     private final UserRepository userRepository;
     private final BookingDateValidator bookingDateValidator;
     private final TableUnavailabilityChecker unavailabilityChecker;
+    private final RefundPolicyCalculator refundPolicyCalculator;
 
     @Transactional
     public BookingResponse createBooking(String phone, CreateBookingRequest request) {
@@ -82,6 +83,37 @@ public class BookingService {
         }
     }
 
+    @Transactional
+    public BookingResponse cancelBookingByGuest(String phone, Long bookingId) {
+        User user = userRepository.findByPhone(phone)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new BookingNotFoundException("Бронь не найдена"));
+
+        if (!booking.getUserId().equals(user.getId())) {
+            throw new BookingNotOwnedException("Эта бронь вам не принадлежит");
+        }
+
+        switch (booking.getStatus()) {
+            case CANCELLED -> throw new InvalidBookingStateException("Бронь уже отменена");
+            case COMPLETED -> throw new InvalidBookingStateException("Нельзя отменить завершенную бронь");
+            case EXPIRED -> throw new InvalidBookingStateException("Нельзя отменить истекшую бронь");
+            case PENDING_PAYMENT, CONFIRMED -> {
+                int refundPercentage = refundPolicyCalculator.calculateRefundPercentage(booking.getBookingAt(), OffsetDateTime.now());
+                booking.setStatus(BookingStatus.CANCELLED);
+                booking.setRefundPercentage(refundPercentage);
+            }
+        }
+
+        ClubTable bookingTable = clubTableRepository.findById(booking.getClubTableId())
+                .orElseThrow(() -> new TableNotFoundException("Столик не найден"));
+
+        booking = bookingRepository.save(booking);
+
+        return toResponse(booking, bookingTable);
+    }
+
     @Transactional(readOnly = true)
     public List<AdminBookingResponse> getAdminBookings(OffsetDateTime from, OffsetDateTime to) {
         OffsetDateTime end = (to != null) ? to : from.plusDays(1);
@@ -116,7 +148,8 @@ public class BookingService {
                 booking.getCreatedAt(),
                 booking.getStatus(),
                 booking.getAmount(),
-                booking.getGuestsCount()
+                booking.getGuestsCount(),
+                booking.getRefundPercentage()
         );
     }
 }

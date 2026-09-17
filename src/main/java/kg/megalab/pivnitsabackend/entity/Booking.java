@@ -38,6 +38,9 @@ public class Booking {
     @Column(name = "cancellation_reason")
     private String cancellationReason;
 
+    @Column(name = "refund_percentage")
+    private Integer refundPercentage;
+
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
 

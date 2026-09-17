@@ -14,6 +14,7 @@ public record BookingResponse(
         OffsetDateTime createdAt,
         BookingStatus status,
         BigDecimal amount,
-        Integer guestsCount
+        Integer guestsCount,
+        Integer refundPercentage
 ) {
 }
