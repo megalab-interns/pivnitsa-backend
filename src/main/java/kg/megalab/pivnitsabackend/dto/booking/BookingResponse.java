@@ -15,6 +15,7 @@ public record BookingResponse(
         BookingStatus status,
         BigDecimal amount,
         Integer guestsCount,
-        Integer refundPercentage
+        Integer refundPercentage,
+        String comment
 ) {
 }

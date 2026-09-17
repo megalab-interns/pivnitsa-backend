@@ -48,6 +48,9 @@ public class Booking {
     @Column(name = "guests_count", nullable = false)
     private Integer guestsCount = 1;
 
+    @Column(name = "comment")
+    private String comment;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

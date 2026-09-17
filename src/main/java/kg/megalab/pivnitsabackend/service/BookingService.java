@@ -72,6 +72,7 @@ public class BookingService {
                     .status(BookingStatus.PENDING_PAYMENT)
                     .amount(bookingTable.getDepositAmount())
                     .guestsCount(request.guestsCount())
+                    .comment(request.comment())
                     .build();
 
             booking = bookingRepository.save(booking);
@@ -149,7 +150,8 @@ public class BookingService {
                 booking.getStatus(),
                 booking.getAmount(),
                 booking.getGuestsCount(),
-                booking.getRefundPercentage()
+                booking.getRefundPercentage(),
+                booking.getComment()
         );
     }
 }

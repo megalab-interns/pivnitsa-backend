@@ -17,6 +17,7 @@ public record AdminBookingResponse(
         BigDecimal amount,
         BookingStatus bookingStatus,
         PaymentStatus paymentStatus,
-        String cancellationReason
+        String cancellationReason,
+        String comment
 ) {
 }
