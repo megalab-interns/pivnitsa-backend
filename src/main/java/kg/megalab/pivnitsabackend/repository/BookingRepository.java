@@ -75,7 +75,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                 b.amount,
                 b.status,
                 p.status,
-                b.cancellationReason
+                b.cancellationReason,
+                b.comment
             )
             FROM Booking b
             JOIN ClubTable t ON t.id = b.clubTableId
