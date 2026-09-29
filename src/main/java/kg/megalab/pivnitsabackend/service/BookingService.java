@@ -101,6 +101,9 @@ public class BookingService {
             case COMPLETED -> throw new InvalidBookingStateException("Нельзя отменить завершенную бронь");
             case EXPIRED -> throw new InvalidBookingStateException("Нельзя отменить истекшую бронь");
             case PENDING_PAYMENT, CONFIRMED -> {
+                if (booking.getBookingAt().isBefore(OffsetDateTime.now())) {
+                    throw new BookingTimePassedException("Время брони уже прошло, обратитесь к персоналу");
+                }
                 int refundPercentage = refundPolicyCalculator.calculateRefundPercentage(booking.getBookingAt(), OffsetDateTime.now());
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setRefundPercentage(refundPercentage);
