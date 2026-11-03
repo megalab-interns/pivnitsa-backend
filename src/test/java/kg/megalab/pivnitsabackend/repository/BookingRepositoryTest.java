@@ -229,6 +229,7 @@ class BookingRepositoryTest {
                         .bookingAt(bookingAt)
                         .status(status)
                         .amount(new BigDecimal(amount))
+                        .paymentDeadline(OffsetDateTime.now().plusMinutes(15))
                         .build()
         );
     }

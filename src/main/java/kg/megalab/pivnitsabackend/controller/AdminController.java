@@ -8,12 +8,14 @@ import kg.megalab.pivnitsabackend.dto.event.EventResponse;
 import kg.megalab.pivnitsabackend.service.BookingReportService;
 import kg.megalab.pivnitsabackend.service.BookingService;
 import kg.megalab.pivnitsabackend.service.EventService;
+import kg.megalab.pivnitsabackend.service.ManualPaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -32,6 +34,7 @@ public class AdminController {
     private final BookingReportService bookingReportService;
     private final EventService eventService;
     private final BookingReportExcelExporter excelExporter;
+    private final ManualPaymentService manualPaymentService;
 
     @GetMapping("/bookings")
     public ResponseEntity<List<AdminBookingResponse>> getBookingsByDate(
@@ -39,6 +42,30 @@ public class AdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to
     ) {
         return ResponseEntity.ok(bookingService.getAdminBookings(from, to));
+    }
+
+    @GetMapping("/bookings/pending-payment")
+    public ResponseEntity<List<AdminBookingResponse>> getPendingPaymentBookings() {
+        return ResponseEntity.ok(manualPaymentService.getPendingPaymentBookings());
+    }
+
+    @PatchMapping("/bookings/{id}/payment/confirm")
+    public ResponseEntity<Void> confirmPayment(
+            @AuthenticationPrincipal String staffEmail,
+            @PathVariable Long id
+    ) {
+        manualPaymentService.confirmPayment(staffEmail, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/bookings/{id}/payment/reject")
+    public ResponseEntity<Void> rejectPayment(
+            @AuthenticationPrincipal String staffEmail,
+            @PathVariable Long id,
+            @Valid @RequestBody RejectPaymentRequest request
+    ) {
+        manualPaymentService.rejectPayment(staffEmail, id, request.reason());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/bookings/report")

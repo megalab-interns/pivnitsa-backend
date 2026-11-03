@@ -16,6 +16,7 @@ public record BookingResponse(
         BigDecimal amount,
         Integer guestsCount,
         Integer refundPercentage,
-        String comment
+        String comment,
+        ManualPaymentInstructionsResponse paymentInstructions
 ) {
 }
