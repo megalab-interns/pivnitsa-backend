@@ -58,7 +58,7 @@ app:
   manual-payment:
     payment-window: ${MANUAL_PAYMENT_WINDOW:15m}
     qr-image-url: ${MANUAL_PAYMENT_QR_IMAGE_URL:}
-    whatsapp-number: ${MANUAL_PAYMENT_WHATSAPP_NUMBER:}
+    whatsapp-number: 996508787154
   s3:
     bucket-name: ${S3_BUCKET_NAME:pivnitsa-media-local}
     region: ${S3_REGION:garage}
