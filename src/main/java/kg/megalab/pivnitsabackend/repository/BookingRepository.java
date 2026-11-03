@@ -8,6 +8,7 @@ import kg.megalab.pivnitsabackend.entity.Booking;
 import kg.megalab.pivnitsabackend.entity.BookingStatus;
 import kg.megalab.pivnitsabackend.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -132,6 +133,31 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             ORDER BY b.createdAt ASC
             """)
     List<AdminBookingResponse> findPendingPaymentBookings();
+
+    @Query("""
+            SELECT new kg.megalab.pivnitsabackend.dto.admin.AdminBookingResponse(
+                b.id, t.tableNumber, b.bookingAt, b.createdAt, b.paymentDeadline,
+                CASE WHEN b.paymentDeadline < CURRENT_TIMESTAMP THEN true ELSE false END,
+                b.paymentReviewedAt, b.paymentReviewedByStaffId,
+                u.firstName, u.lastName, u.phone, b.guestsCount, b.amount,
+                b.status, p.status, b.cancellationReason, b.comment
+            )
+            FROM Booking b
+            JOIN ClubTable t ON t.id = b.clubTableId
+            JOIN User u ON u.id = b.userId
+            LEFT JOIN Payment p ON p.bookingId = b.id
+               AND p.id = (SELECT MAX(p2.id) FROM Payment p2 WHERE p2.bookingId = b.id)
+            WHERE (:bookingId IS NOT NULL AND b.id = :bookingId)
+               OR LOWER(u.phone) LIKE :pattern ESCAPE '!'
+               OR LOWER(CONCAT(CONCAT(u.firstName, ' '), u.lastName)) LIKE :pattern ESCAPE '!'
+               OR LOWER(CONCAT(CONCAT(u.lastName, ' '), u.firstName)) LIKE :pattern ESCAPE '!'
+            ORDER BY b.createdAt DESC
+            """)
+    List<AdminBookingResponse> searchAdminBookings(
+            @Param("bookingId") Long bookingId,
+            @Param("pattern") String pattern,
+            Pageable pageable
+    );
 
     @Query("""
                 SELECT new kg.megalab.pivnitsabackend.dto.admin.BookingReportSummaryResponse(

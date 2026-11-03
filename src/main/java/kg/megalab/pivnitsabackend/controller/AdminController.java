@@ -49,6 +49,11 @@ public class AdminController {
         return ResponseEntity.ok(manualPaymentService.getPendingPaymentBookings());
     }
 
+    @GetMapping("/bookings/search")
+    public ResponseEntity<List<AdminBookingResponse>> searchBookings(@RequestParam String query) {
+        return ResponseEntity.ok(manualPaymentService.searchAdminBookings(query));
+    }
+
     @PatchMapping("/bookings/{id}/payment/confirm")
     public ResponseEntity<Void> confirmPayment(
             @AuthenticationPrincipal String staffEmail,

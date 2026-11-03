@@ -4,6 +4,7 @@ import kg.megalab.pivnitsabackend.config.ManualPaymentProperties;
 import kg.megalab.pivnitsabackend.dto.booking.ManualPaymentInstructionsResponse;
 import kg.megalab.pivnitsabackend.entity.*;
 import kg.megalab.pivnitsabackend.repository.*;
+import org.springframework.data.domain.Pageable;
 import kg.megalab.pivnitsabackend.service.notifications.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,6 +146,26 @@ class ManualPaymentServiceTest {
         assertThat(booking.getCancellationReason()).isEqualTo("Чек не найден");
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.FAILED);
         verify(bookingRepository).save(booking);
+    }
+
+    @Test
+    void shouldNotCreateAnotherPaymentOnRepeatedConfirmation() {
+        Booking booking = booking(BookingStatus.CONFIRMED);
+        when(bookingRepository.findByIdForUpdate(booking.getId())).thenReturn(Optional.of(booking));
+
+        service.confirmPayment("admin@example.test", booking.getId());
+
+        verifyNoInteractions(paymentRepository, staffRepository, notificationService);
+        verify(bookingRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldSearchByBookingIdAndNormalizedName() {
+        service.searchAdminBookings("  Асан   Ибраев  ");
+        verify(bookingRepository).searchAdminBookings(eq(null), eq("%асан ибраев%"), any(Pageable.class));
+
+        service.searchAdminBookings("42");
+        verify(bookingRepository).searchAdminBookings(eq(42L), eq("%42%"), any(Pageable.class));
     }
 
     private Booking booking(BookingStatus status) {

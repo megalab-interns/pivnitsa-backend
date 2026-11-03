@@ -8,12 +8,14 @@ import kg.megalab.pivnitsabackend.exception.BookingNotFoundException;
 import kg.megalab.pivnitsabackend.exception.InvalidBookingStateException;
 import kg.megalab.pivnitsabackend.exception.UserNotFoundException;
 import kg.megalab.pivnitsabackend.exception.booking.BookingNotOwnedException;
+import kg.megalab.pivnitsabackend.exception.booking.InvalidBookingDataException;
 import kg.megalab.pivnitsabackend.exception.staffexception.StaffNotFoundException;
 import kg.megalab.pivnitsabackend.exception.tables.TableNotFoundException;
 import kg.megalab.pivnitsabackend.repository.*;
 import kg.megalab.pivnitsabackend.service.notifications.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URLEncoder;
@@ -97,6 +99,32 @@ public class ManualPaymentService {
     @Transactional(readOnly = true)
     public List<AdminBookingResponse> getPendingPaymentBookings() {
         return bookingRepository.findPendingPaymentBookings();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminBookingResponse> searchAdminBookings(String query) {
+        if (query == null || query.isBlank()) {
+            throw new InvalidBookingDataException("Укажите ID брони, телефон или ФИО");
+        }
+
+        String normalized = query.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        if (normalized.length() > 100) {
+            throw new InvalidBookingDataException("Поисковый запрос слишком длинный");
+        }
+
+        Long bookingId = null;
+        if (normalized.matches("[0-9]+")) {
+            try {
+                bookingId = Long.valueOf(normalized);
+            } catch (NumberFormatException ignored) {
+                // A long phone number may not fit in a booking ID.
+            }
+        }
+
+        String escaped = normalized.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+        return bookingRepository.searchAdminBookings(bookingId, "%" + escaped + "%", PageRequest.of(0, 50));
     }
 
     @Transactional
