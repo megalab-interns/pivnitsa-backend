@@ -1,6 +1,8 @@
 package kg.megalab.pivnitsabackend.controller;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import kg.megalab.pivnitsabackend.config.OpenApiConfig;
 import kg.megalab.pivnitsabackend.dto.booking.BookingResponse;
 import kg.megalab.pivnitsabackend.dto.booking.ManualPaymentInstructionsResponse;
 import kg.megalab.pivnitsabackend.dto.booking.CreateBookingRequest;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/bookings")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class BookingController {
     private final BookingService bookingService;
     private final ManualPaymentService manualPaymentService;
