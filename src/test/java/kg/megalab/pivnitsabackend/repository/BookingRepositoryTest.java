@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -112,6 +113,20 @@ class BookingRepositoryTest {
         assertEquals("Doe", dto.lastName());
         assertEquals(BookingStatus.CONFIRMED, dto.bookingStatus());
         assertEquals(PaymentStatus.SUCCEEDED, dto.paymentStatus());
+    }
+
+    @Test
+    void shouldSearchBookingByIdPhoneAndFullName() {
+        Booking booking = createBooking(now, BookingStatus.PENDING_PAYMENT, "1500.00");
+        createPayment(booking.getId(), "1500.00", PaymentStatus.PENDING);
+        entityManager.flush();
+
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                booking.getId(), "%unmatched%", PageRequest.of(0, 50)).getFirst().id());
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                null, "%5001122%", PageRequest.of(0, 50)).getFirst().id());
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                null, "%jane doe%", PageRequest.of(0, 50)).getFirst().id());
     }
 
     @Test
@@ -229,6 +244,7 @@ class BookingRepositoryTest {
                         .bookingAt(bookingAt)
                         .status(status)
                         .amount(new BigDecimal(amount))
+                        .paymentDeadline(OffsetDateTime.now().plusMinutes(15))
                         .build()
         );
     }

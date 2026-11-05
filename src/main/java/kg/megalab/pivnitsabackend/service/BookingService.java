@@ -34,6 +34,7 @@ public class BookingService {
     private final BookingDateValidator bookingDateValidator;
     private final TableUnavailabilityChecker unavailabilityChecker;
     private final RefundPolicyCalculator refundPolicyCalculator;
+    private final ManualPaymentService manualPaymentService;
 
     @Transactional
     public BookingResponse createBooking(String phone, CreateBookingRequest request) {
@@ -73,11 +74,17 @@ public class BookingService {
                     .amount(bookingTable.getDepositAmount())
                     .guestsCount(request.guestsCount())
                     .comment(request.comment())
+                    .paymentDeadline(manualPaymentService.newPaymentDeadline())
                     .build();
 
             booking = bookingRepository.save(booking);
+            manualPaymentService.createPendingPayment(booking);
 
-            return toResponse(booking, bookingTable);
+            return toResponse(
+                    booking,
+                    bookingTable,
+                    manualPaymentService.buildInstructions(booking, user, bookingTable)
+            );
 
         } catch (DataIntegrityViolationException e) {
             throw new TableNotAvailableException("Столик уже забронирован");
@@ -107,6 +114,7 @@ public class BookingService {
                 int refundPercentage = refundPolicyCalculator.calculateRefundPercentage(booking.getBookingAt(), OffsetDateTime.now());
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setRefundPercentage(refundPercentage);
+                manualPaymentService.failPendingPayment(booking.getId());
             }
         }
 
@@ -115,7 +123,7 @@ public class BookingService {
 
         booking = bookingRepository.save(booking);
 
-        return toResponse(booking, bookingTable);
+        return toResponse(booking, bookingTable, null);
     }
 
     @Transactional(readOnly = true)
@@ -137,12 +145,17 @@ public class BookingService {
             case PENDING_PAYMENT, CONFIRMED -> {
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancellationReason(reason);
+                manualPaymentService.failPendingPayment(booking.getId());
                 bookingRepository.save(booking);
             }
         }
     }
 
-    private BookingResponse toResponse(Booking booking, ClubTable bookingTable) {
+    private BookingResponse toResponse(
+            Booking booking,
+            ClubTable bookingTable,
+            ManualPaymentInstructionsResponse paymentInstructions
+    ) {
         return new BookingResponse(
                 booking.getId(),
                 booking.getClubTableId(),
@@ -154,7 +167,8 @@ public class BookingService {
                 booking.getAmount(),
                 booking.getGuestsCount(),
                 booking.getRefundPercentage(),
-                booking.getComment()
+                booking.getComment(),
+                paymentInstructions
         );
     }
 }

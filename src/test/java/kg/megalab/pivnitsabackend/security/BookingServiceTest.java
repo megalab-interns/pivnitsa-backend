@@ -7,6 +7,7 @@ import kg.megalab.pivnitsabackend.exception.BookingNotFoundException;
 import kg.megalab.pivnitsabackend.exception.InvalidBookingStateException;
 import kg.megalab.pivnitsabackend.repository.BookingRepository;
 import kg.megalab.pivnitsabackend.service.BookingService;
+import kg.megalab.pivnitsabackend.service.ManualPaymentService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,9 @@ class BookingServiceTest {
 
     @Mock
     private BookingRepository bookingRepository;
+
+    @Mock
+    private ManualPaymentService manualPaymentService;
 
     @InjectMocks
     private BookingService bookingService;
