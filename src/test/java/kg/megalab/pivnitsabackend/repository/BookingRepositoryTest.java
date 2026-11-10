@@ -130,6 +130,45 @@ class BookingRepositoryTest {
     }
 
     @Test
+    void shouldSplitCurrentUsersBookingsIntoActiveAndHistory() {
+        Booking futurePending = createBooking(now.plusDays(1), BookingStatus.PENDING_PAYMENT, "1500.00");
+        Booking futureConfirmed = createBooking(now.plusDays(2), BookingStatus.CONFIRMED, "1500.00");
+        Booking pastConfirmed = createBooking(now.minusDays(1), BookingStatus.CONFIRMED, "1500.00");
+        Booking futureRejected = createBooking(now.plusDays(3), BookingStatus.EXPIRED, "1500.00");
+        Booking pastPending = createBooking(now.minusDays(2), BookingStatus.PENDING_PAYMENT, "1500.00");
+
+        User anotherUser = userRepository.save(User.builder()
+                .firstName("Other")
+                .lastName("Guest")
+                .phone("+996500112244")
+                .phoneVerified(true)
+                .build());
+        bookingRepository.save(Booking.builder()
+                .userId(anotherUser.getId())
+                .clubTableId(defaultTable.getId())
+                .guestsCount(2)
+                .bookingAt(now.plusDays(4))
+                .status(BookingStatus.CONFIRMED)
+                .amount(new BigDecimal("1500.00"))
+                .paymentDeadline(now.plusMinutes(15))
+                .build());
+        entityManager.flush();
+
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED
+        );
+        List<Long> activeIds = bookingRepository.findActiveBookings(
+                defaultUser.getId(), activeStatuses, now
+        ).stream().map(Booking::getId).toList();
+        List<Long> historyIds = bookingRepository.findBookingHistory(
+                defaultUser.getId(), activeStatuses, now
+        ).stream().map(Booking::getId).toList();
+
+        assertEquals(List.of(futurePending.getId(), futureConfirmed.getId()), activeIds);
+        assertEquals(List.of(futureRejected.getId(), pastConfirmed.getId(), pastPending.getId()), historyIds);
+    }
+
+    @Test
     @DisplayName("Должен возвращать ровно одну строку и статус ПОСЛЕДНЕГО платежа при нескольких попытках оплаты")
     void shouldReturnOnlyLatestPaymentStatusWhenMultiplePaymentsExist() {
         // ARRANGE

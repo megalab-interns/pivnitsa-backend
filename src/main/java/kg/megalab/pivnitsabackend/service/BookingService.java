@@ -23,11 +23,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BookingService {
+    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(
+            BookingStatus.PENDING_PAYMENT,
+            BookingStatus.CONFIRMED
+    );
+
     private final BookingRepository bookingRepository;
     private final ClubTableRepository clubTableRepository;
     private final UserRepository userRepository;
@@ -35,6 +44,50 @@ public class BookingService {
     private final TableUnavailabilityChecker unavailabilityChecker;
     private final RefundPolicyCalculator refundPolicyCalculator;
     private final ManualPaymentService manualPaymentService;
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getActiveBookings(String phone) {
+        Long userId = getUserId(phone);
+        List<Booking> bookings = bookingRepository.findActiveBookings(
+                userId, ACTIVE_STATUSES, OffsetDateTime.now()
+        );
+        return toResponses(bookings);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingHistory(String phone) {
+        Long userId = getUserId(phone);
+        List<Booking> bookings = bookingRepository.findBookingHistory(
+                userId, ACTIVE_STATUSES, OffsetDateTime.now()
+        );
+        return toResponses(bookings);
+    }
+
+    private Long getUserId(String phone) {
+        return userRepository.findByPhone(phone)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"))
+                .getId();
+    }
+
+    private List<BookingResponse> toResponses(List<Booking> bookings) {
+        if (bookings.isEmpty()) {
+            return List.of();
+        }
+
+        Collection<Long> tableIds = bookings.stream().map(Booking::getClubTableId).distinct().toList();
+        Map<Long, ClubTable> tablesById = clubTableRepository.findAllById(tableIds).stream()
+                .collect(Collectors.toMap(ClubTable::getId, Function.identity()));
+
+        return bookings.stream()
+                .map(booking -> {
+                    ClubTable table = tablesById.get(booking.getClubTableId());
+                    if (table == null) {
+                        throw new TableNotFoundException("Столик не найден");
+                    }
+                    return toResponse(booking, table, null);
+                })
+                .toList();
+    }
 
     @Transactional
     public BookingResponse createBooking(String phone, CreateBookingRequest request) {

@@ -3,9 +3,13 @@ package kg.megalab.pivnitsabackend.security;
 import kg.megalab.pivnitsabackend.dto.admin.CancelBookingRequest;
 import kg.megalab.pivnitsabackend.entity.Booking;
 import kg.megalab.pivnitsabackend.entity.BookingStatus;
+import kg.megalab.pivnitsabackend.entity.ClubTable;
+import kg.megalab.pivnitsabackend.entity.User;
 import kg.megalab.pivnitsabackend.exception.BookingNotFoundException;
 import kg.megalab.pivnitsabackend.exception.InvalidBookingStateException;
 import kg.megalab.pivnitsabackend.repository.BookingRepository;
+import kg.megalab.pivnitsabackend.repository.ClubTableRepository;
+import kg.megalab.pivnitsabackend.repository.UserRepository;
 import kg.megalab.pivnitsabackend.service.BookingService;
 import kg.megalab.pivnitsabackend.service.ManualPaymentService;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,10 +36,45 @@ class BookingServiceTest {
     private BookingRepository bookingRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private ClubTableRepository clubTableRepository;
+
+    @Mock
     private ManualPaymentService manualPaymentService;
 
     @InjectMocks
     private BookingService bookingService;
+
+    @Test
+    void shouldReturnCurrentUsersActiveBookingsWithCurrentResponseFields() {
+        String phone = "+996500112233";
+        User user = User.builder().id(7L).phone(phone).build();
+        Booking booking = Booking.builder()
+                .id(12L)
+                .userId(user.getId())
+                .clubTableId(3L)
+                .bookingAt(OffsetDateTime.now().plusDays(1))
+                .status(BookingStatus.PENDING_PAYMENT)
+                .amount(new BigDecimal("1500.00"))
+                .guestsCount(2)
+                .build();
+        ClubTable table = ClubTable.builder().id(3L).tableNumber("T-1").build();
+
+        when(userRepository.findByPhone(phone)).thenReturn(Optional.of(user));
+        when(bookingRepository.findActiveBookings(eq(7L), any(), any()))
+                .thenReturn(List.of(booking));
+        when(clubTableRepository.findAllById(any())).thenReturn(List.of(table));
+
+        var result = bookingService.getActiveBookings(phone);
+
+        assertThat(result.size()).isEqualTo(1);
+        assertThat(result.getFirst().id()).isEqualTo(12L);
+        assertThat(result.getFirst().tableNumber()).isEqualTo("T-1");
+        assertThat(result.getFirst().status()).isEqualTo(BookingStatus.PENDING_PAYMENT);
+        assertThat(result.getFirst().paymentInstructions()).isNull();
+    }
 
     @Test
     @DisplayName("Если 'to' не передан, сервис должен подставить 'from + 1 день'")
