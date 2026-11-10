@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -21,6 +22,16 @@ import org.springframework.web.bind.annotation.*;
 public class BookingController {
     private final BookingService bookingService;
     private final ManualPaymentService manualPaymentService;
+
+    @GetMapping("/active")
+    public ResponseEntity<List<BookingResponse>> getActiveBookings(@AuthenticationPrincipal String phone) {
+        return ResponseEntity.ok(bookingService.getActiveBookings(phone));
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<List<BookingResponse>> getBookingHistory(@AuthenticationPrincipal String phone) {
+        return ResponseEntity.ok(bookingService.getBookingHistory(phone));
+    }
 
     @PostMapping()
     public ResponseEntity<BookingResponse> createBooking(@AuthenticationPrincipal String phone, @Valid @RequestBody CreateBookingRequest request) {

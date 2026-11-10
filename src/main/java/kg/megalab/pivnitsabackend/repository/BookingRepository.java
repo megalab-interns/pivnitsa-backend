@@ -14,12 +14,38 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByIdAndUserId(Long id, Long userId);
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.userId = :userId
+              AND b.status IN :activeStatuses
+              AND b.bookingAt >= :now
+            ORDER BY b.bookingAt ASC
+            """)
+    List<Booking> findActiveBookings(
+            @Param("userId") Long userId,
+            @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
+            @Param("now") OffsetDateTime now
+    );
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.userId = :userId
+              AND (b.status NOT IN :activeStatuses OR b.bookingAt < :now)
+            ORDER BY b.bookingAt DESC
+            """)
+    List<Booking> findBookingHistory(
+            @Param("userId") Long userId,
+            @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
+            @Param("now") OffsetDateTime now
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT b FROM Booking b WHERE b.id = :id")
