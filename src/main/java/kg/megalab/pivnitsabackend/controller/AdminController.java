@@ -36,6 +36,11 @@ public class AdminController {
     private final BookingReportExcelExporter excelExporter;
     private final ManualPaymentService manualPaymentService;
 
+    @GetMapping("/events")
+    public ResponseEntity<List<AdminEventResponse>> getEvents() {
+        return ResponseEntity.ok(eventService.getAdminEvents());
+    }
+
     @GetMapping("/bookings")
     public ResponseEntity<List<AdminBookingResponse>> getBookingsByDate(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
