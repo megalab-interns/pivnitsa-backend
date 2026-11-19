@@ -51,6 +51,15 @@ public class Booking {
     @Column(name = "comment")
     private String comment;
 
+    @Column(name = "payment_deadline", nullable = false)
+    private OffsetDateTime paymentDeadline;
+
+    @Column(name = "payment_reviewed_at")
+    private OffsetDateTime paymentReviewedAt;
+
+    @Column(name = "payment_reviewed_by_staff_id")
+    private Long paymentReviewedByStaffId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

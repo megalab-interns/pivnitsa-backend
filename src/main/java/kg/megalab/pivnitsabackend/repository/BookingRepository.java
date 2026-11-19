@@ -1,5 +1,6 @@
 package kg.megalab.pivnitsabackend.repository;
 
+import jakarta.persistence.LockModeType;
 import kg.megalab.pivnitsabackend.dto.admin.AdminBookingResponse;
 import kg.megalab.pivnitsabackend.dto.admin.BookingReportItemResponse;
 import kg.megalab.pivnitsabackend.dto.admin.BookingReportSummaryResponse;
@@ -7,13 +8,48 @@ import kg.megalab.pivnitsabackend.entity.Booking;
 import kg.megalab.pivnitsabackend.entity.BookingStatus;
 import kg.megalab.pivnitsabackend.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
+
+    Optional<Booking> findByIdAndUserId(Long id, Long userId);
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.userId = :userId
+              AND b.status IN :activeStatuses
+              AND b.bookingAt >= :now
+            ORDER BY b.bookingAt ASC
+            """)
+    List<Booking> findActiveBookings(
+            @Param("userId") Long userId,
+            @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
+            @Param("now") OffsetDateTime now
+    );
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.userId = :userId
+              AND (b.status NOT IN :activeStatuses OR b.bookingAt < :now)
+            ORDER BY b.bookingAt DESC
+            """)
+    List<Booking> findBookingHistory(
+            @Param("userId") Long userId,
+            @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
+            @Param("now") OffsetDateTime now
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Booking b WHERE b.id = :id")
+    Optional<Booking> findByIdForUpdate(@Param("id") Long id);
 
     @Query("""
             SELECT COUNT(b) > 0
@@ -47,8 +83,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             """)
     List<Long> findClubTableIdsWithActiveBookingOnDate(@Param("startOfDay") OffsetDateTime startOfDay, @Param("endOfDay") OffsetDateTime endOfDay);
 
-    List<Booking> findByStatusAndCreatedAtBefore(BookingStatus status, OffsetDateTime threshold);
-
     @Query("""
             SELECT COUNT(b) > 0
             FROM Booking b
@@ -68,6 +102,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                 b.id,
                 t.tableNumber,
                 b.bookingAt,
+                b.createdAt,
+                b.paymentDeadline,
+                CASE WHEN b.paymentDeadline < CURRENT_TIMESTAMP THEN true ELSE false END,
+                b.paymentReviewedAt,
+                b.paymentReviewedByStaffId,
                 u.firstName,
                 u.lastName,
                 u.phone,
@@ -89,6 +128,61 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<AdminBookingResponse> findAdminBookingsByDate(
             @Param("startOfDay") OffsetDateTime startOfDay,
             @Param("endOfDay") OffsetDateTime endOfDay
+    );
+
+    @Query("""
+            SELECT new kg.megalab.pivnitsabackend.dto.admin.AdminBookingResponse(
+                b.id,
+                t.tableNumber,
+                b.bookingAt,
+                b.createdAt,
+                b.paymentDeadline,
+                CASE WHEN b.paymentDeadline < CURRENT_TIMESTAMP THEN true ELSE false END,
+                b.paymentReviewedAt,
+                b.paymentReviewedByStaffId,
+                u.firstName,
+                u.lastName,
+                u.phone,
+                b.guestsCount,
+                b.amount,
+                b.status,
+                p.status,
+                b.cancellationReason,
+                b.comment
+            )
+            FROM Booking b
+            JOIN ClubTable t ON t.id = b.clubTableId
+            JOIN User u ON u.id = b.userId
+            LEFT JOIN Payment p ON p.bookingId = b.id
+               AND p.id = (SELECT MAX(p2.id) FROM Payment p2 WHERE p2.bookingId = b.id)
+            WHERE b.status = kg.megalab.pivnitsabackend.entity.BookingStatus.PENDING_PAYMENT
+            ORDER BY b.createdAt ASC
+            """)
+    List<AdminBookingResponse> findPendingPaymentBookings();
+
+    @Query("""
+            SELECT new kg.megalab.pivnitsabackend.dto.admin.AdminBookingResponse(
+                b.id, t.tableNumber, b.bookingAt, b.createdAt, b.paymentDeadline,
+                CASE WHEN b.paymentDeadline < CURRENT_TIMESTAMP THEN true ELSE false END,
+                b.paymentReviewedAt, b.paymentReviewedByStaffId,
+                u.firstName, u.lastName, u.phone, b.guestsCount, b.amount,
+                b.status, p.status, b.cancellationReason, b.comment
+            )
+            FROM Booking b
+            JOIN ClubTable t ON t.id = b.clubTableId
+            JOIN User u ON u.id = b.userId
+            LEFT JOIN Payment p ON p.bookingId = b.id
+               AND p.id = (SELECT MAX(p2.id) FROM Payment p2 WHERE p2.bookingId = b.id)
+            WHERE (:bookingId IS NOT NULL AND b.id = :bookingId)
+               OR LOWER(u.phone) LIKE :pattern ESCAPE '!'
+               OR LOWER(CONCAT(CONCAT(u.firstName, ' '), u.lastName)) LIKE :pattern ESCAPE '!'
+               OR LOWER(CONCAT(CONCAT(u.lastName, ' '), u.firstName)) LIKE :pattern ESCAPE '!'
+            ORDER BY b.createdAt DESC
+            """)
+    List<AdminBookingResponse> searchAdminBookings(
+            @Param("bookingId") Long bookingId,
+            @Param("pattern") String pattern,
+            Pageable pageable
     );
 
     @Query("""

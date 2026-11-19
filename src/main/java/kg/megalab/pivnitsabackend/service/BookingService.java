@@ -23,17 +23,71 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BookingService {
+    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(
+            BookingStatus.PENDING_PAYMENT,
+            BookingStatus.CONFIRMED
+    );
+
     private final BookingRepository bookingRepository;
     private final ClubTableRepository clubTableRepository;
     private final UserRepository userRepository;
     private final BookingDateValidator bookingDateValidator;
     private final TableUnavailabilityChecker unavailabilityChecker;
     private final RefundPolicyCalculator refundPolicyCalculator;
+    private final ManualPaymentService manualPaymentService;
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getActiveBookings(String phone) {
+        Long userId = getUserId(phone);
+        List<Booking> bookings = bookingRepository.findActiveBookings(
+                userId, ACTIVE_STATUSES, OffsetDateTime.now()
+        );
+        return toResponses(bookings);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getBookingHistory(String phone) {
+        Long userId = getUserId(phone);
+        List<Booking> bookings = bookingRepository.findBookingHistory(
+                userId, ACTIVE_STATUSES, OffsetDateTime.now()
+        );
+        return toResponses(bookings);
+    }
+
+    private Long getUserId(String phone) {
+        return userRepository.findByPhone(phone)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"))
+                .getId();
+    }
+
+    private List<BookingResponse> toResponses(List<Booking> bookings) {
+        if (bookings.isEmpty()) {
+            return List.of();
+        }
+
+        Collection<Long> tableIds = bookings.stream().map(Booking::getClubTableId).distinct().toList();
+        Map<Long, ClubTable> tablesById = clubTableRepository.findAllById(tableIds).stream()
+                .collect(Collectors.toMap(ClubTable::getId, Function.identity()));
+
+        return bookings.stream()
+                .map(booking -> {
+                    ClubTable table = tablesById.get(booking.getClubTableId());
+                    if (table == null) {
+                        throw new TableNotFoundException("Столик не найден");
+                    }
+                    return toResponse(booking, table, null);
+                })
+                .toList();
+    }
 
     @Transactional
     public BookingResponse createBooking(String phone, CreateBookingRequest request) {
@@ -73,11 +127,17 @@ public class BookingService {
                     .amount(bookingTable.getDepositAmount())
                     .guestsCount(request.guestsCount())
                     .comment(request.comment())
+                    .paymentDeadline(manualPaymentService.newPaymentDeadline())
                     .build();
 
             booking = bookingRepository.save(booking);
+            manualPaymentService.createPendingPayment(booking);
 
-            return toResponse(booking, bookingTable);
+            return toResponse(
+                    booking,
+                    bookingTable,
+                    manualPaymentService.buildInstructions(booking, user, bookingTable)
+            );
 
         } catch (DataIntegrityViolationException e) {
             throw new TableNotAvailableException("Столик уже забронирован");
@@ -107,6 +167,7 @@ public class BookingService {
                 int refundPercentage = refundPolicyCalculator.calculateRefundPercentage(booking.getBookingAt(), OffsetDateTime.now());
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setRefundPercentage(refundPercentage);
+                manualPaymentService.failPendingPayment(booking.getId());
             }
         }
 
@@ -115,7 +176,7 @@ public class BookingService {
 
         booking = bookingRepository.save(booking);
 
-        return toResponse(booking, bookingTable);
+        return toResponse(booking, bookingTable, null);
     }
 
     @Transactional(readOnly = true)
@@ -137,12 +198,17 @@ public class BookingService {
             case PENDING_PAYMENT, CONFIRMED -> {
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancellationReason(reason);
+                manualPaymentService.failPendingPayment(booking.getId());
                 bookingRepository.save(booking);
             }
         }
     }
 
-    private BookingResponse toResponse(Booking booking, ClubTable bookingTable) {
+    private BookingResponse toResponse(
+            Booking booking,
+            ClubTable bookingTable,
+            ManualPaymentInstructionsResponse paymentInstructions
+    ) {
         return new BookingResponse(
                 booking.getId(),
                 booking.getClubTableId(),
@@ -154,7 +220,8 @@ public class BookingService {
                 booking.getAmount(),
                 booking.getGuestsCount(),
                 booking.getRefundPercentage(),
-                booking.getComment()
+                booking.getComment(),
+                paymentInstructions
         );
     }
 }

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -112,6 +113,59 @@ class BookingRepositoryTest {
         assertEquals("Doe", dto.lastName());
         assertEquals(BookingStatus.CONFIRMED, dto.bookingStatus());
         assertEquals(PaymentStatus.SUCCEEDED, dto.paymentStatus());
+    }
+
+    @Test
+    void shouldSearchBookingByIdPhoneAndFullName() {
+        Booking booking = createBooking(now, BookingStatus.PENDING_PAYMENT, "1500.00");
+        createPayment(booking.getId(), "1500.00", PaymentStatus.PENDING);
+        entityManager.flush();
+
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                booking.getId(), "%unmatched%", PageRequest.of(0, 50)).getFirst().id());
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                null, "%5001122%", PageRequest.of(0, 50)).getFirst().id());
+        assertEquals(booking.getId(), bookingRepository.searchAdminBookings(
+                null, "%jane doe%", PageRequest.of(0, 50)).getFirst().id());
+    }
+
+    @Test
+    void shouldSplitCurrentUsersBookingsIntoActiveAndHistory() {
+        Booking futurePending = createBooking(now.plusDays(1), BookingStatus.PENDING_PAYMENT, "1500.00");
+        Booking futureConfirmed = createBooking(now.plusDays(2), BookingStatus.CONFIRMED, "1500.00");
+        Booking pastConfirmed = createBooking(now.minusDays(1), BookingStatus.CONFIRMED, "1500.00");
+        Booking futureRejected = createBooking(now.plusDays(3), BookingStatus.EXPIRED, "1500.00");
+        Booking pastPending = createBooking(now.minusDays(2), BookingStatus.PENDING_PAYMENT, "1500.00");
+
+        User anotherUser = userRepository.save(User.builder()
+                .firstName("Other")
+                .lastName("Guest")
+                .phone("+996500112244")
+                .phoneVerified(true)
+                .build());
+        bookingRepository.save(Booking.builder()
+                .userId(anotherUser.getId())
+                .clubTableId(defaultTable.getId())
+                .guestsCount(2)
+                .bookingAt(now.plusDays(4))
+                .status(BookingStatus.CONFIRMED)
+                .amount(new BigDecimal("1500.00"))
+                .paymentDeadline(now.plusMinutes(15))
+                .build());
+        entityManager.flush();
+
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED
+        );
+        List<Long> activeIds = bookingRepository.findActiveBookings(
+                defaultUser.getId(), activeStatuses, now
+        ).stream().map(Booking::getId).toList();
+        List<Long> historyIds = bookingRepository.findBookingHistory(
+                defaultUser.getId(), activeStatuses, now
+        ).stream().map(Booking::getId).toList();
+
+        assertEquals(List.of(futurePending.getId(), futureConfirmed.getId()), activeIds);
+        assertEquals(List.of(futureRejected.getId(), pastConfirmed.getId(), pastPending.getId()), historyIds);
     }
 
     @Test
@@ -229,6 +283,7 @@ class BookingRepositoryTest {
                         .bookingAt(bookingAt)
                         .status(status)
                         .amount(new BigDecimal(amount))
+                        .paymentDeadline(OffsetDateTime.now().plusMinutes(15))
                         .build()
         );
     }
