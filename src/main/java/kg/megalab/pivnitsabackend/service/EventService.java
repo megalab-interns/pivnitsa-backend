@@ -1,5 +1,6 @@
 package kg.megalab.pivnitsabackend.service;
 
+import kg.megalab.pivnitsabackend.dto.admin.AdminEventResponse;
 import kg.megalab.pivnitsabackend.dto.admin.CreateEventRequest;
 import kg.megalab.pivnitsabackend.dto.admin.UpdateEventRequest;
 import kg.megalab.pivnitsabackend.dto.event.*;
@@ -22,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -242,6 +244,13 @@ public class EventService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<AdminEventResponse> getAdminEvents() {
+        return eventRepository.findAll().stream()
+                .map(this::mapToAdminEventResponse)
+                .toList();
+    }
+
     private Event getEvent(Long id) {
         return eventRepository.findById(id).orElseThrow(() -> new EventNotFoundException("Event not found, id: " + id));
     }
@@ -261,5 +270,21 @@ public class EventService {
         } else {
             log.info("Уведомление для мероприятия id={} уже было отправлено параллельно, пропуск", event.getId());
         }
+    }
+
+    private AdminEventResponse mapToAdminEventResponse(Event event) {
+        return new AdminEventResponse(
+                event.getId(),
+                event.getTitle(),
+                event.getDescription(),
+                s3FileStorageService.toFullUrl(event.getBannerUrl()),
+                event.getStatus(),
+                canonicalUrl + event.getId(),
+                event.isNotificationSent(),
+                event.getStartsAt(),
+                event.getEndsAt(),
+                event.getCreatedAt(),
+                event.getUpdatedAt()
+        );
     }
 }
