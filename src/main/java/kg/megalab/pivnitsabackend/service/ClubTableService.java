@@ -39,6 +39,10 @@ public class ClubTableService {
                 .tableNumber(request.tableNumber())
                 .capacity(request.capacity())
                 .hallId(request.hallId())
+                .positionX(request.positionX())         // новое: положение теперь можно задать при создании
+                .positionY(request.positionY())
+                .category(request.category())
+                .depositAmount(request.depositAmount())
                 .build();
 
         clubTable = clubTableRepository.save(clubTable);
