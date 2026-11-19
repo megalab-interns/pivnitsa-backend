@@ -1,6 +1,5 @@
 package kg.megalab.pivnitsabackend.service;
 
-import kg.megalab.pivnitsabackend.dto.booking.BookingResponse;
 import kg.megalab.pivnitsabackend.entity.BookingStatus;
 import kg.megalab.pivnitsabackend.entity.ClubTable;
 import kg.megalab.pivnitsabackend.entity.User;
@@ -48,6 +47,9 @@ class BookingServiceTest {
 
     @Mock
     private RefundPolicyCalculator refundPolicyCalculator;
+
+    @Mock
+    private ManualPaymentService manualPaymentService;
 
     @InjectMocks
     private BookingService bookingService;
