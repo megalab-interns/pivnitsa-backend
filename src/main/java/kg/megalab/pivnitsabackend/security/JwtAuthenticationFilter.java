@@ -36,11 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final StaffRepository staffRepository;
 
     @Override
-    protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
+    protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
 
@@ -57,9 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String scope = jwtService.extractScope(token);
 
             if (scope.equals("STAFF") || scope.equals("OWNER")) {
-                boolean stillActive = staffRepository.findByEmail(phone)
-                        .map(Staff::isActive)
-                        .orElse(false);
+                boolean stillActive = staffRepository.findByEmail(phone).map(Staff::isActive).orElse(false);
 
                 if (!stillActive) {
                     throw new InvalidTokenException("Аккаунт деактивирован");
@@ -73,50 +67,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (jwtService.isTokenValid(token, phone)) {
-                    List<GrantedAuthority> authorities =
-                            List.of(new SimpleGrantedAuthority("ROLE_" + scope));
+                    List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + scope));
 
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    phone,
-                                    null,
-                                    authorities
-                            );
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(phone, null, authorities);
 
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
 
-            filterChain.doFilter(request, response);
-
         } catch (InvalidTokenException e) {
             log.warn("Ошибка валидации токена: {}", e.getMessage());
             SecurityContextHolder.clearContext();
             handlerExceptionResolver.resolveException(request, response, null, e);
+            return;                                                     // ответ уже сформирован, дальше не идём
         } catch (QueryTimeoutException | RedisConnectionFailureException e) {
             log.error("Redis недоступен при запросе {}: {}", request.getRequestURI(), e.getMessage(), e);
             SecurityContextHolder.clearContext();
 
-            handlerExceptionResolver.resolveException(
-                    request,
-                    response,
-                    null,
-                    new TokenBlacklistUnavailableException("База данных токенов недоступна")
-            );
+            handlerExceptionResolver.resolveException(request, response, null, new TokenBlacklistUnavailableException("База данных токенов недоступна"));
+            return;                                                     // то же самое
         } catch (JwtException e) {
             log.warn("Невалидный или повреждённый JWT токен для {}: {}", request.getRequestURI(), e.getMessage());
             SecurityContextHolder.clearContext();
-            handlerExceptionResolver.resolveException(
-                    request,
-                    response,
-                    null,
-                    new InvalidTokenException("Невалидный или повреждённый токен")
-            );
+            handlerExceptionResolver.resolveException(request, response, null, new InvalidTokenException("Невалидный или повреждённый токен"));
+            return;                                                     // то же самое
         } catch (Exception e) {
             log.error("Непредвиденная ошибка в фильтре для {}: {}", request.getRequestURI(), e.getMessage(), e);
             SecurityContextHolder.clearContext();
             handlerExceptionResolver.resolveException(request, response, null, e);
+            return;                                                     // то же самое
         }
+
+        filterChain.doFilter(request, response);                        // сюда доходим, только если с токеном всё в порядке
     }
 }
+
