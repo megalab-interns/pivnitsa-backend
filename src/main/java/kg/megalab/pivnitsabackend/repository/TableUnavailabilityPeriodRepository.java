@@ -32,4 +32,6 @@ public interface TableUnavailabilityPeriodRepository extends JpaRepository<Table
             @Param("startOfDay") OffsetDateTime startOfDay,
             @Param("endOfDay") OffsetDateTime endOfDay
     );
+
+    void deleteByClubTableId(Long clubTableId);
 }

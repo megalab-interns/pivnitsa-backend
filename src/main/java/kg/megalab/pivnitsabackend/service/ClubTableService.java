@@ -10,7 +10,7 @@ import kg.megalab.pivnitsabackend.repository.BookingRepository;
 import kg.megalab.pivnitsabackend.repository.ClubTableRepository;
 import kg.megalab.pivnitsabackend.repository.HallRepository;
 import kg.megalab.pivnitsabackend.repository.BookingRepository.*;
-
+import kg.megalab.pivnitsabackend.repository.TableUnavailabilityPeriodRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +24,7 @@ public class ClubTableService {
     private final ClubTableRepository clubTableRepository;
     private final HallRepository hallRepository;
     private final BookingRepository bookingRepository;
+    private final TableUnavailabilityPeriodRepository unavailabilityPeriodRepository;
 
     @Transactional
     public TableResponse createTable(CreateTableRequest request) {
@@ -100,6 +101,7 @@ public class ClubTableService {
         return toResponse(clubTable);
     }
 
+    @Transactional
     public void deleteTable(Long id) {
         ClubTable clubTable = clubTableRepository.findById(id)
                 .orElseThrow(() -> new TableNotFoundException("Столик не найден"));
@@ -107,7 +109,15 @@ public class ClubTableService {
         if (bookingRepository.existsActiveBookingByTableId(id)) {
             throw new TableHasBookingReservationException("Столик забронирован, нельзя удалить");
         }
-        clubTableRepository.delete(clubTable);
+
+        unavailabilityPeriodRepository.deleteByClubTableId(id);
+
+        if (bookingRepository.existsByClubTableId(id)) {
+            clubTable.setActive(false);
+            clubTableRepository.save(clubTable);
+        } else {
+            clubTableRepository.delete(clubTable);
+        }
     }
 
     public List<PublicTableResponse> getPublicTables(Long hallId) {
@@ -128,6 +138,7 @@ public class ClubTableService {
                         clubTable.getCategory()
                 )).toList();
     }
+
 
     private TableResponse toResponse(ClubTable clubTable) {
         return new TableResponse(
