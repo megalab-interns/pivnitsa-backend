@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 
@@ -27,8 +26,8 @@ public class TableStatusService {
         OffsetDateTime endOfDay = range[1];
 
         List<ClubTable> tables = (hallId != null)
-                ? clubTableRepository.findByHallId(hallId)
-                : clubTableRepository.findAll();
+                ? clubTableRepository.findByHallIdAndActiveTrue(hallId)
+                : clubTableRepository.findByActiveTrue();
 
         List<Long> bookedTableIds = bookingRepository.findClubTableIdsWithActiveBookingOnDate(startOfDay, endOfDay);
         Set<Long> unavailableTableIds = unavailabilityChecker.findUnavailableTableIds(startOfDay, endOfDay);

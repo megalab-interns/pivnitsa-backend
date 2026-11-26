@@ -66,13 +66,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     );
 
     @Query("""
-            SELECT COUNT(b) > 0
-            FROM Booking b
-            WHERE b.clubTableId = :tableId
-              AND b.status IN (kg.megalab.pivnitsabackend.entity.BookingStatus.CONFIRMED,
-                                kg.megalab.pivnitsabackend.entity.BookingStatus.PENDING_PAYMENT)
-              AND b.bookingAt > CURRENT_TIMESTAMP
-            """)
+        SELECT COUNT(b) > 0
+        FROM Booking b
+        WHERE b.clubTableId = :tableId
+          AND b.status IN (kg.megalab.pivnitsabackend.entity.BookingStatus.CONFIRMED,
+                           kg.megalab.pivnitsabackend.entity.BookingStatus.PENDING_PAYMENT)
+        """)
     boolean existsActiveBookingByTableId(@Param("tableId") Long tableId);
 
     @Query("""
@@ -224,4 +223,6 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("endDate") OffsetDateTime endDate,
             @Param("paidStatus") PaymentStatus paidStatus
     );
+
+    boolean existsByClubTableId(Long clubTableId);
 }
